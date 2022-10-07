@@ -113,8 +113,11 @@ GEM
     loofah (2.18.0)
       crass (~> 1.0.2)
       nokogiri (>= 1.5.9)
-    mail (2.7.1)
+    mail (2.8.0.rc1)
       mini_mime (>= 0.1.1)
+      net-imap
+      net-pop
+      net-smtp
     marcel (1.0.2)
     matrix (0.4.2)
     method_source (1.0.0)
@@ -122,6 +125,8 @@ GEM
     mini_portile2 (2.8.0)
     minitest (5.16.3)
     mocha (1.15.0)
+    net-http (0.2.2)
+      uri
     net-imap (0.2.3)
       digest
       net-protocol
@@ -228,6 +233,7 @@ GEM
     tzinfo (2.0.5)
       concurrent-ruby (~> 1.0)
     unicode-display_width (2.3.0)
+    uri (0.11.0)
     webdrivers (5.2.0)
       nokogiri (~> 1.6)
       rubyzip (>= 1.3.0)
@@ -251,9 +257,10 @@ PLATFORMS
 DEPENDENCIES
   better_html
   capybara
+  mail (>= 2.8.0.rc1)
   maintenance_tasks!
   mocha
-  net-smtp
+  net-http
   pg
   pry-byebug
   puma

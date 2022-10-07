@@ -6,8 +6,9 @@ gemspec
 
 gem "better_html"
 gem "capybara"
+gem "mail", ">= 2.8.0.rc1" # https://github.com/mikel/mail/pull/1472
 gem "mocha"
-gem "net-smtp" # mail is missing a dependency on net-smtp https://github.com/mikel/mail/pull/1439
+gem "net-http" # Ruby 2.7 stdlib's net/http loads net/protocol relatively, which loads both the stdlib and gem version
 gem "pg"
 gem "pry-byebug"
 gem "puma"
