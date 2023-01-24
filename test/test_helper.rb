@@ -37,13 +37,19 @@ end
 # we require it before to avoid that deprecation from raising.
 require "csv"
 
+require "deprecations_tracker"
+
 module Warning
   class << self
     def warn(message)
       # gems/selenium-webdriver-4.7.1/lib/selenium/webdriver/remote/bridge.rb:633:
       # warning: Expected selenium/webdriver/remote/commands
       # to define Selenium::WebDriver::Remote::COMMANDS but it didn't
-      return if message.match?(/Selenium::WebDriver::Remote::COMMANDS/)
+      if RUBY_VERSION == "3.2.0" && message.match?(/Selenium::WebDriver::Remote::COMMANDS/)
+        puts "deprecation happened"
+        ::DeprecationsTracker.selenium_webdriver_commands_happened = true
+        return
+      end
 
       raise message.to_s
     end
@@ -53,3 +59,15 @@ $VERBOSE = true
 Warning[:deprecated] = true
 
 Maintenance::UpdatePostsTask.fast_task = true
+
+raise_if_deprecation_solved = lambda do
+  return if RUBY_VERSION != "3.2.0"
+  return if DeprecationsTracker.selenium_webdriver_commands_happened
+
+  raise "deprecation in selenium-webdriver has been fixed, we can remove the ignore"
+end
+if MiniTest.respond_to?(:after_run)
+  Minitest.after_run(&raise_if_deprecation_solved)
+else
+  Minitest::Unit.after_tests(&raise_if_deprecation_solved)
+end
