@@ -19,9 +19,9 @@ Gem::Specification.new do |spec|
   spec.bindir = "exe"
   spec.executables = ["maintenance_tasks"]
 
-  spec.add_dependency("actionpack", ">= 6.0")
-  spec.add_dependency("activejob", ">= 6.0")
-  spec.add_dependency("activerecord", ">= 6.0")
-  spec.add_dependency("job-iteration", "~> 1.3.6")
-  spec.add_dependency("railties", ">= 6.0")
+  spec.add_dependency("actionpack", ">= 5.2")
+  spec.add_dependency("activejob", ">= 5.2")
+  spec.add_dependency("activerecord", ">= 5.2")
+  spec.add_dependency("job-iteration", "~> 1.1")
+  spec.add_dependency("railties", ">= 5.2")
 end

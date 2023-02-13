@@ -1,6 +1,6 @@
 <div class="box">
   <h3 class="title is-3">
-    <%= link_to task, task_path(task) %>
+    <%= link_to task.name.delete_prefix('Maintenance::').titleize(keep_id_suffix: true), task_path(task) %>
     <%= status_tag(task.status) %>
   </h3>
 
