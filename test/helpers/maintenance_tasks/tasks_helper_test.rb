@@ -24,7 +24,7 @@ module MaintenanceTasks
       @run.started_at = Time.now
 
       Progress.expects(:new).with(@run).returns(
-        mock(value: 42, max: 84, text: "Almost there!")
+        mock(value: 42, max: 84, text: "Almost there!"),
       )
 
       expected = '<div class="block"><progress value="42" max="84" '\
@@ -40,7 +40,7 @@ module MaintenanceTasks
     test "#progress returns a a <div> with a <progress> with no value when the Progress value is nil" do
       @run.started_at = Time.now
       Progress.expects(:new).with(@run).returns(
-        mock(value: nil, max: 84, text: "Almost there!")
+        mock(value: nil, max: 84, text: "Almost there!"),
       )
 
       expected = '<div class="block"><progress max="84" '\
@@ -73,9 +73,11 @@ module MaintenanceTasks
 
     test "#highlight_code does not wrap whitespace" do
       assert_equal '<span class="ruby-int">1</span>' + "\n"\
-        '<span class="ruby-int">2</span>', highlight_code("1\n2")
+        '<span class="ruby-int">2</span>',
+        highlight_code("1\n2")
       assert_equal '<span class="ruby-int">1</span>' + " "\
-        '<span class="ruby-int">2</span>', highlight_code("1 2")
+        '<span class="ruby-int">2</span>',
+        highlight_code("1 2")
       assert_equal "\n", highlight_code("\n")
     end
 
@@ -83,6 +85,7 @@ module MaintenanceTasks
       run = Run.new(task_name: "Maintenance::ImportPostsTask")
       csv = Rack::Test::UploadedFile.new(file_fixture("sample.csv"), "text/csv")
       run.csv_file.attach(csv)
+      run.save!
 
       assert_match %r{rails/active_storage/blobs/\S+/sample.csv},
         csv_file_download_path(run)

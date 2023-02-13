@@ -18,10 +18,6 @@ module MaintenanceTasks
 
     config.to_prepare do
       _ = TaskJobConcern # load this for JobIteration compatibility check
-      tasks_module = MaintenanceTasks.tasks_module.underscore
-      Dir["#{Rails.root}/app/tasks/#{tasks_module}/*.rb"].each do |file|
-        require_dependency(file)
-      end
     end
 
     config.after_initialize do

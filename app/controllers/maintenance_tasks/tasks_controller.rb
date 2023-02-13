@@ -12,33 +12,20 @@ module MaintenanceTasks
     # Renders the maintenance_tasks/tasks page, displaying
     # available tasks to users, grouped by category.
     def index
-      @available_tasks = TaskData.available_tasks.group_by(&:category)
+      @available_tasks = TaskDataIndex.available_tasks.group_by(&:category)
     end
 
     # Renders the page responsible for providing Task actions to users.
     # Shows running and completed instances of the Task.
     def show
-      @task = TaskData.find(params.fetch(:id))
-      set_refresh if @task.last_run&.active?
-      @runs_page = RunsPage.new(@task.previous_runs, params[:cursor])
-    end
-
-    # Runs a given Task and redirects to the Task page.
-    def run(&block)
-      task = Runner.run(
-        name: params.fetch(:id),
-        csv_file: params[:csv_file],
-        arguments: params.fetch(:task_arguments, {}).permit!.to_h,
-        &block
-      )
-      redirect_to(task_path(task))
-    rescue ActiveRecord::RecordInvalid => error
-      redirect_to(task_path(error.record.task_name), alert: error.message)
-    rescue ActiveRecord::ValueTooLong => error
       task_name = params.fetch(:id)
-      redirect_to(task_path(task_name), alert: error.message)
-    rescue Runner::EnqueuingError => error
-      redirect_to(task_path(error.run.task_name), alert: error.message)
+      @task = TaskDataShow.new(task_name)
+      @task.active_runs.load
+      set_refresh if @task.active_runs.any?
+      @runs_page = RunsPage.new(@task.completed_runs, params[:cursor])
+      if @task.active_runs.none? && @runs_page.records.none?
+        Task.named(task_name)
+      end
     end
 
     private

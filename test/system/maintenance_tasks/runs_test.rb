@@ -13,7 +13,6 @@ module MaintenanceTasks
       assert_title "Maintenance::UpdatePostsTask"
       assert_text "Enqueued"
       assert_text "Waiting to start."
-      assert_no_button "Run"
     end
 
     test "run a CSV Task" do
@@ -26,7 +25,6 @@ module MaintenanceTasks
       assert_title "Maintenance::ImportPostsTask"
       assert_text "Enqueued"
       assert_text "Waiting to start."
-      assert_no_button "Run"
     end
 
     test "run a Task that accepts parameters" do
@@ -57,9 +55,7 @@ module MaintenanceTasks
       fill_in("_task_arguments_post_ids", with: "xyz")
       click_on "Run"
 
-      alert_text = "Validation failed: Arguments are invalid: :post_ids is "\
-        "invalid"
-      assert_text alert_text
+      assert_text "Validation failed: Arguments are invalid: :post_ids is invalid"
     end
 
     test "download the CSV attached to a run for a CSV Task" do
@@ -74,8 +70,7 @@ module MaintenanceTasks
 
       click_on("Download CSV")
 
-      downloaded_csv = "test/dummy/tmp/downloads/"\
-        "20200109T094144Z_maintenance_import_posts_task.csv"
+      downloaded_csv = "test/dummy/tmp/downloads/20200109T094144Z_maintenance_import_posts_task.csv"
 
       Timeout.timeout(1) do
         sleep(0.1) until File.exist?(downloaded_csv)
@@ -97,7 +92,7 @@ module MaintenanceTasks
     test "resume a Run" do
       visit maintenance_tasks_path
 
-      click_on("Maintenance::UpdatePostsTask")
+      click_on("Maintenance::UpdatePostsInBatchesTask")
       click_on "Run"
       click_on "Pause"
       perform_enqueued_jobs
@@ -111,7 +106,7 @@ module MaintenanceTasks
     test "cancel a Run" do
       visit maintenance_tasks_path
 
-      click_on("Maintenance::UpdatePostsTask")
+      click_on("Maintenance::UpdatePostsInBatchesTask")
       click_on "Run"
       click_on "Cancel"
 
@@ -122,7 +117,7 @@ module MaintenanceTasks
     test "cancel a pausing Run" do
       visit maintenance_tasks_path
 
-      click_on("Maintenance::UpdatePostsTask")
+      click_on("Maintenance::UpdatePostsInBatchesTask")
       click_on "Run"
       click_on "Pause"
       assert_text "Pausing"
@@ -134,7 +129,7 @@ module MaintenanceTasks
     test "cancel a stuck Run" do
       visit maintenance_tasks_path
 
-      click_on("Maintenance::UpdatePostsTask")
+      click_on("Maintenance::UpdatePostsInBatchesTask")
       click_on "Run"
       click_on "Cancel"
 
@@ -165,8 +160,7 @@ module MaintenanceTasks
       end
 
       assert_text "Errored"
-      assert_text "Ran for less than 5 seconds until an error happened "\
-        "less than a minute ago."
+      assert_text "Ran for less than 5 seconds until an error happened less than a minute ago."
       assert_text "ArgumentError"
       assert_text "Something went wrong"
       assert_text "app/tasks/maintenance/error_task.rb:10:in `process'"
@@ -175,20 +169,24 @@ module MaintenanceTasks
     test "errors for double enqueue are shown" do
       visit maintenance_tasks_path
 
-      click_on("Maintenance::UpdatePostsTask")
+      click_on("Maintenance::UpdatePostsInBatchesTask")
+
+      click_on "Run"
+      click_on "Pause"
+
+      perform_enqueued_jobs
+
+      page.refresh
 
       url = page.current_url
       using_session(:other_tab) do
         visit url
-        click_on "Run"
-        click_on "Pause"
+        click_on "Resume"
       end
 
-      click_on "Run"
+      click_on "Resume"
 
-      alert_text = "Validation failed: " \
-        "Status Cannot transition run from status pausing to enqueued"
-      assert_text alert_text
+      assert_text "Validation failed: Status Cannot transition run from status enqueued to enqueued"
     end
 
     test "errors when enqueuing are shown" do
@@ -196,22 +194,20 @@ module MaintenanceTasks
 
       click_on "Maintenance::EnqueueErrorTask"
       click_on "Run"
-      assert_text "The job to perform Maintenance::EnqueueErrorTask "\
-        "could not be enqueued"
+      assert_text "The job to perform Maintenance::EnqueueErrorTask could not be enqueued"
       assert_text "Error enqueuing"
 
       visit maintenance_tasks_path
       click_on "Maintenance::CancelledEnqueueTask"
       click_on "Run"
-      assert_text "The job to perform Maintenance::CancelledEnqueueTask "\
-        "could not be enqueued"
+      assert_text "The job to perform Maintenance::CancelledEnqueueTask could not be enqueued"
       assert_text "The job to perform Maintenance::CancelledEnqueueTask "\
         "could not be enqueued. Enqueuing has been prevented by a callback."
     end
 
     test "errors for invalid pause or cancel due to stale UI are shown" do
       visit maintenance_tasks_path
-      click_on("Maintenance::UpdatePostsTask")
+      click_on("Maintenance::UpdatePostsInBatchesTask")
 
       url = page.current_url
       click_on "Run"
@@ -223,9 +219,7 @@ module MaintenanceTasks
 
       click_on "Pause"
 
-      alert_text = "Validation failed: " \
-        "Status Cannot transition run from status cancelling to pausing"
-      assert_text alert_text
+      assert_text "Validation failed: Status Cannot transition run from status cancelling to pausing"
     end
   end
 end

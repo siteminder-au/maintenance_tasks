@@ -110,7 +110,7 @@ module MaintenanceTasks
       assert_equal 1, @run.reload.tick_count
     end
 
-    test ".perform_now persists started_at and updates tick_total when the job starts" do
+    test ".perform_now persists started_at when the job starts" do
       freeze_time
       Maintenance::TestTask.any_instance.expects(:process).once.with do
         @run.cancelling!
@@ -119,7 +119,6 @@ module MaintenanceTasks
       TaskJob.perform_now(@run)
 
       assert_equal Time.now, @run.reload.started_at
-      assert_equal 2, @run.tick_total
     end
 
     test ".perform_now updates Run to running when job starts performing" do
@@ -259,7 +258,7 @@ module MaintenanceTasks
 
       run = Run.new(task_name: "Maintenance::ImportPostsTask")
       run.csv_file.attach(
-        { io: File.open(file_fixture("sample.csv")), filename: "sample.csv" }
+        { io: File.open(file_fixture("sample.csv")), filename: "sample.csv" },
       )
       run.save
       TaskJob.perform_now(run)
@@ -282,7 +281,7 @@ module MaintenanceTasks
 
       run = Run.new(task_name: "Maintenance::BatchImportPostsTask")
       run.csv_file.attach(
-        { io: File.open(file_fixture("sample.csv")), filename: "sample.csv" }
+        { io: File.open(file_fixture("sample.csv")), filename: "sample.csv" },
       )
       run.save
       TaskJob.perform_now(run)
@@ -454,7 +453,7 @@ module MaintenanceTasks
 
       run = Run.create!(
         task_name: "Maintenance::ParamsTask",
-        arguments: { post_ids: post.id.to_s }
+        arguments: { post_ids: post.id.to_s },
       )
       TaskJob.perform_now(run)
 
@@ -595,6 +594,28 @@ module MaintenanceTasks
       end
 
       TaskJob.perform_now(run)
+    end
+
+    test "Active Record Relation tasks have their count calculated implicitly" do
+      run = Run.create!(task_name: "Maintenance::UpdatePostsTask")
+
+      Maintenance::UpdatePostsTask.any_instance.expects(:process).once.with do
+        run.cancelling!
+      end
+
+      TaskJob.perform_now(run)
+
+      assert_equal 2, run.reload.tick_total
+    end
+
+    test "array-based tasks have their count calculated implicitly" do
+      Maintenance::TestTask.any_instance.expects(:process).once.with do
+        @run.cancelling!
+      end
+
+      TaskJob.perform_now(@run)
+
+      assert_equal 2, @run.reload.tick_total
     end
   end
 end

@@ -13,7 +13,7 @@ module MaintenanceTasks
       @csv = file_fixture("sample.csv")
     end
 
-    test "#run creates and performs a Run for the given Task when there is no active Run" do
+    test "#run creates and performs a Run for the given Task" do
       assert_difference -> { Run.where(task_name: @name).count }, 1 do
         assert_enqueued_with(job: @job) do
           assert_equal Maintenance::UpdatePostsTask, @runner.run(name: @name)
@@ -21,13 +21,12 @@ module MaintenanceTasks
       end
     end
 
-    test "#run enqueues the existing active Run for the given Task" do
-      run = Run.create!(task_name: @name, status: :paused)
+    test "#run enqueues a new Run for the Task when one already exists" do
+      Run.create!(task_name: @name, status: :paused)
 
-      assert_no_difference -> { Run.where(task_name: @name).count } do
-        assert_enqueued_with(job: @job, args: [run]) do
+      assert_difference -> { Run.where(task_name: @name).count }, 1 do
+        assert_enqueued_with(job: @job) do
           assert_equal Maintenance::UpdatePostsTask, @runner.run(name: @name)
-          assert run.reload.enqueued?
         end
       end
     end
@@ -41,16 +40,16 @@ module MaintenanceTasks
     end
 
     # Yielding the run is undocumented and not supported in the Runner's API
-    test "#run yields the newly created Run when there is no active Run" do
-      run = Run.create!(task_name: @name, status: :paused)
-
-      @runner.run(name: @name) { |yielded| @run = yielded }
-      assert_equal run, @run
+    test "#run yields the newly created Run" do
+      @runner.run(name: @name) { |run| @run = run }
+      assert_equal Run.last, @run
     end
 
     # Yielding the run is undocumented and not supported in the Runner's API
-    test "#run yields the existing active Run" do
-      @runner.run(name: @name) { |run| @run = run }
+    test "#run always yields the newly created Run" do
+      Run.create!(task_name: @name, status: :paused)
+
+      @runner.run(name: @name) { |yielded| @run = yielded }
       assert_equal Run.last, @run
     end
 
@@ -63,7 +62,7 @@ module MaintenanceTasks
 
           assert_equal(
             "Validation failed: Task name is not included in the list",
-            error.message
+            error.message,
           )
         end
       end
@@ -78,7 +77,7 @@ module MaintenanceTasks
         assert_equal(
           "The job to perform Maintenance::EnqueueErrorTask "\
             "could not be enqueued",
-          error.message
+          error.message,
         )
         assert_kind_of RuntimeError, error.cause
         assert_equal "Error enqueuing", error.cause.message
@@ -94,14 +93,14 @@ module MaintenanceTasks
         assert_equal(
           "The job to perform Maintenance::CancelledEnqueueTask "\
             "could not be enqueued",
-          error.message
+          error.message,
         )
         assert_kind_of RuntimeError, error.cause
         assert_equal(
           "The job to perform Maintenance::CancelledEnqueueTask "\
             "could not be enqueued. "\
             "Enqueuing has been prevented by a callback.",
-          error.cause.message
+          error.cause.message,
         )
       end
     end
@@ -111,7 +110,7 @@ module MaintenanceTasks
       assert_raises(ActiveRecord::ValueTooLong) do
         @runner.run(
           name: "Maintenance::ParamsTask",
-          arguments: { post_ids: "123" }
+          arguments: { post_ids: "123" },
         )
       end
     end
@@ -132,7 +131,7 @@ module MaintenanceTasks
 
         assert_equal(
           "Validation failed: Csv file should not be attached to non-CSV Task.",
-          error.message
+          error.message,
         )
       end
     end
@@ -147,7 +146,7 @@ module MaintenanceTasks
 
           assert_equal(
             "Validation failed: Csv file must be attached to CSV Task.",
-            error.message
+            error.message,
           )
         end
       end
@@ -165,14 +164,7 @@ module MaintenanceTasks
     private
 
     def csv_io
-      { io: File.open(@csv), filename: "sample.csv" }
-    end
-
-    test "#new raises deprecation warning and returns self" do
-      dep_msg = "Use Runner.run instead of Runner.new.run"
-      assert_deprecated(dep_msg) do
-        assert_equal Runner, Runner.new
-      end
+      { io: File.open(@csv), filename: "sample.csv", content_type: "text/csv" }
     end
   end
 end

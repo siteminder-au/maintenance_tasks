@@ -21,10 +21,20 @@ module MaintenanceTasks
       refute_predicate run, :valid?
     end
 
+    test "invalid if content_type is not text/csv" do
+      run = Run.new(task_name: "Maintenance::ImportPostsTask")
+      tsv = Rack::Test::UploadedFile.new(
+        file_fixture("sample.tsv"),
+        "text/tab-separated-values",
+      )
+      run.csv_file.attach(tsv)
+      refute_predicate run, :valid?
+    end
+
     test "invalid if associated Task has parameters and they are invalid" do
       run = Run.new(
         task_name: "Maintenance::ParamsTask",
-        arguments: { post_ids: "xyz" }
+        arguments: { post_ids: "xyz" },
       )
       refute_predicate run, :valid?
     end
@@ -32,7 +42,7 @@ module MaintenanceTasks
     test "invalid if arguments used do not match parameters on Task" do
       run = Run.new(
         task_name: "Maintenance::ParamsTask",
-        arguments: { post_ids: "1,2,3", bad_argument: "1,2,3" }
+        arguments: { post_ids: "1,2,3", bad_argument: "1,2,3" },
       )
       refute_predicate run, :valid?
       assert_equal run.errors.full_messages.first,
@@ -42,7 +52,7 @@ module MaintenanceTasks
     test "invalid if arguments are supplied but Task does not support parameters" do
       run = Run.new(
         task_name: "Maintenance::UpdatePostsTask",
-        arguments: { post_ids: "1,2,3" }
+        arguments: { post_ids: "1,2,3" },
       )
       refute_predicate run, :valid?
       assert_equal run.errors.full_messages.first,
@@ -58,40 +68,41 @@ module MaintenanceTasks
     end
 
     test "#persist_transition calls the interrupt callback" do
-      run = Run.create!(task_name: "Maintenance::CallbackTestTask",
-        status: "running")
+      run = Run.create!(
+        task_name: "Maintenance::CallbackTestTask",
+        status: "running",
+      )
       run.status = :interrupted
       run.task.expects(:after_interrupt_callback)
       run.persist_transition
     end
 
     test "#persist_transition calls the complete callback" do
-      run = Run.create!(task_name: "Maintenance::CallbackTestTask",
-        status: "running")
+      run = Run.create!(task_name: "Maintenance::CallbackTestTask", status: "running")
       run.status = :succeeded
       run.task.expects(:after_complete_callback)
       run.persist_transition
     end
 
     test "#persist_transition calls the cancel callback" do
-      run = Run.create!(task_name: "Maintenance::CallbackTestTask",
-        status: "cancelling")
+      run = Run.create!(
+        task_name: "Maintenance::CallbackTestTask",
+        status: "cancelling",
+      )
       run.status = :cancelled
       run.task.expects(:after_cancel_callback)
       run.persist_transition
     end
 
     test "#persist_transition calls the pause callback" do
-      run = Run.create!(task_name: "Maintenance::CallbackTestTask",
-        status: "pausing")
+      run = Run.create!(task_name: "Maintenance::CallbackTestTask", status: "pausing")
       run.status = :paused
       run.task.expects(:after_pause_callback)
       run.persist_transition
     end
 
     test "#persist_transition with a race condition moves the run to the proper status and calls the right callback" do
-      run = Run.create!(task_name: "Maintenance::CallbackTestTask",
-        status: "running")
+      run = Run.create!(task_name: "Maintenance::CallbackTestTask", status: "running")
       Run.find(run.id).cancelling!
 
       run.task.expects(:after_interrupt_callback).never
@@ -103,8 +114,7 @@ module MaintenanceTasks
     end
 
     test "#persist_transition with a race condition for a successful run moves to the succeeded status and calls the right callback" do
-      run = Run.create!(task_name: "Maintenance::CallbackTestTask",
-        status: "running")
+      run = Run.create!(task_name: "Maintenance::CallbackTestTask", status: "running")
       Run.find(run.id).cancelling!
 
       run.task.expects(:after_interrupt_callback).never
@@ -278,7 +288,7 @@ module MaintenanceTasks
     test "#started? returns true if the Run has a started_at timestamp" do
       run = Run.new(
         task_name: "Maintenance::UpdatePostsTask",
-        started_at: Time.now
+        started_at: Time.now,
       )
       assert_predicate run, :started?
     end
@@ -314,7 +324,7 @@ module MaintenanceTasks
     test "#time_to_completion returns nil if the run is completed" do
       run = Run.new(
         task_name: "Maintenance::UpdatePostsTask",
-        status: :succeeded
+        status: :succeeded,
       )
 
       assert_nil run.time_to_completion
@@ -325,7 +335,7 @@ module MaintenanceTasks
         task_name: "Maintenance::UpdatePostsTask",
         status: :running,
         tick_count: 0,
-        tick_total: 10
+        tick_total: 10,
       )
 
       assert_nil run.time_to_completion
@@ -335,7 +345,7 @@ module MaintenanceTasks
       run = Run.new(
         task_name: "Maintenance::UpdatePostsTask",
         status: :running,
-        tick_count: 1
+        tick_count: 1,
       )
 
       assert_nil run.time_to_completion
@@ -430,7 +440,7 @@ module MaintenanceTasks
       freeze_time
       run = Run.create!(
         task_name: "Maintenance::UpdatePostsTask",
-        status: :running
+        status: :running,
       )
       run.start(2)
 
@@ -441,7 +451,7 @@ module MaintenanceTasks
     test "#start runs the start callback" do
       run = Run.create!(
         task_name: "Maintenance::CallbackTestTask",
-        status: :running
+        status: :running,
       )
       run.task.expects(:after_start_callback)
       run.start(2)
@@ -551,8 +561,10 @@ module MaintenanceTasks
     end
 
     test "#cancel calls the cancel callback if the job was paused" do
-      run = Run.create!(task_name: "Maintenance::CallbackTestTask",
-        status: "paused")
+      run = Run.create!(
+        task_name: "Maintenance::CallbackTestTask",
+        status: "paused",
+      )
       run.task.expects(:after_cancel_callback)
       run.cancel
     end
@@ -579,7 +591,7 @@ module MaintenanceTasks
     test "#validate_task_arguments instantiates Task and assigns arguments if Task has parameters" do
       run = Run.new(
         task_name: "Maintenance::ParamsTask",
-        arguments: { post_ids: "1,2,3" }
+        arguments: { post_ids: "1,2,3" },
       )
       run.validate_task_arguments
 
@@ -644,7 +656,7 @@ module MaintenanceTasks
     test "#start rescues and retries ActiveRecord::StaleObjectError" do
       run = Run.create!(
         task_name: "Maintenance::UpdatePostsTask",
-        status: :running
+        status: :running,
       )
       Run.find(run.id).cancelling!
 
@@ -655,6 +667,11 @@ module MaintenanceTasks
       assert_predicate run, :cancelling?
     end
 
+    test "ACTIVE_STATUSES and COMPLETED_STATUSES contain all valid statuses" do
+      assert Run::STATUSES.sort ==
+        (Run::ACTIVE_STATUSES + Run::COMPLETED_STATUSES).sort
+    end
+
     private
 
     def count_uncached_queries(&block)
@@ -663,9 +680,7 @@ module MaintenanceTasks
       query_cb = ->(*, payload) do
         count += 1 if !payload[:cached] && payload[:sql] != "SHOW search_path"
       end
-      ActiveSupport::Notifications.subscribed(query_cb,
-        "sql.active_record",
-        &block)
+      ActiveSupport::Notifications.subscribed(query_cb, "sql.active_record", &block)
 
       count
     end

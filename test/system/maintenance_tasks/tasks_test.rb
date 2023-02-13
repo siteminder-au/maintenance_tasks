@@ -17,21 +17,23 @@ module MaintenanceTasks
       visit maintenance_tasks_path
 
       expected = [
+        "Active Tasks",
+        "Maintenance::NoCollectionTask\nEnqueued",
+        "Maintenance::NoCollectionTask\nPaused",
+        "Maintenance::UpdatePostsTask\nPaused",
         "New Tasks",
         "Maintenance::BatchImportPostsTask\nNew",
         "Maintenance::CallbackTestTask\nNew",
         "Maintenance::CancelledEnqueueTask\nNew",
         "Maintenance::EnqueueErrorTask\nNew",
         "Maintenance::ErrorTask\nNew",
-        "Maintenance::ImportPostsTask\nNew",
-        "Maintenance::NoCollectionTask\nNew",
         "Maintenance::ParamsTask\nNew",
         "Maintenance::TestTask\nNew",
         "Maintenance::UpdatePostsInBatchesTask\nNew",
         "Maintenance::UpdatePostsModulePrependedTask\nNew",
         "Maintenance::UpdatePostsThrottledTask\nNew",
         "Completed Tasks",
-        "Maintenance::UpdatePostsTask\nSucceeded",
+        "Maintenance::ImportPostsTask\nSucceeded",
       ]
 
       assert_equal expected, page.all("h3").map(&:text)
@@ -45,6 +47,20 @@ module MaintenanceTasks
       assert_title "Maintenance::UpdatePostsTask"
       assert_text "Succeeded"
       assert_text "Ran for less than 5 seconds, finished 8 days ago."
+    end
+
+    test "show a Task with active and completed runs" do
+      visit maintenance_tasks_path
+
+      click_on("Maintenance::UpdatePostsTask")
+
+      assert_title "Maintenance::UpdatePostsTask"
+      assert_text "Paused"
+
+      assert_equal ["Active Runs", "Previous Runs"], page.all("h4").map(&:text)
+      runs = page.all("h5").map(&:text)
+      assert_includes runs, "July 18, 2022 11:05\nPaused"
+      assert_includes runs, "January 01, 2020 01:00\nSucceeded"
     end
 
     test "task with attributes renders default values on the form" do
@@ -99,7 +115,7 @@ module MaintenanceTasks
         tick_count: 2,
         tick_total: 10,
         status: :errored,
-        ended_at: 1.hour.ago
+        ended_at: 1.hour.ago,
       )
       21.times do |i|
         Run.create!(
@@ -109,7 +125,7 @@ module MaintenanceTasks
           tick_count: 10,
           tick_total: 10,
           status: :succeeded,
-          ended_at: i.minutes.ago
+          ended_at: i.minutes.ago,
         )
       end
 

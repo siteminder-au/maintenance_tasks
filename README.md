@@ -33,7 +33,27 @@ take a look at the [Active Job documentation][active-job-docs].
 [async-adapter]: https://api.rubyonrails.org/classes/ActiveJob/QueueAdapters/AsyncAdapter.html
 [active-job-docs]: https://guides.rubyonrails.org/active_job_basics.html#setting-the-backend
 
+### Autoloading
+
+The Maintenance Tasks framework does not support autoloading in `:classic` mode.
+Please ensure your application is using
+[Zeitwerk](https://github.com/fxn/zeitwerk) to load your code.  For more
+information, please consult the [Rails guides on autoloading and reloading
+constants](https://guides.rubyonrails.org/autoloading_and_reloading_constants.html).
+
 ## Usage
+
+The typical Maintenance Tasks workflow is as follows:
+
+1. [Generate a class describing the Task](#creating-a-task) and the work to be done.
+2. Run the Task
+    - either by [using the included web UI](#running-a-task-from-the-web-ui),
+    - or by [using the command line](#running-a-task-from-the-command-line),
+    - or by [using Ruby](#running-a-task-from-ruby).
+3. [Monitor the Task](#monitoring-your-tasks-status)
+    - either by using the included web UI,
+    - or by manually checking your task’s run’s status in your database.
+4. Optionally, delete the Task code if you no longer need it.
 
 ### Creating a Task
 
@@ -50,8 +70,13 @@ The generated task is a subclass of `MaintenanceTasks::Task` that implements:
 * `collection`: return an Active Record Relation or an Array to be iterated
   over.
 * `process`: do the work of your maintenance task on a single record
-* `count`: return the number of rows that will be iterated over (optional, to be
-  able to show progress)
+
+Optionally, tasks can also implement a custom `#count` method, defining the
+number of elements that will be iterated over. Your task’s `tick_total` will be
+calculated automatically based on the collection size, but this value may be
+overridden if desired using the `#count` method (this might be done, for
+example, to avoid the query that would be produced to determine the size of your
+collection).
 
 Example:
 
@@ -62,10 +87,6 @@ module Maintenance
   class UpdatePostsTask < MaintenanceTasks::Task
     def collection
       Post.all
-    end
-
-    def count
-      collection.count
     end
 
     def process(post)
@@ -79,10 +100,12 @@ end
 
 You can also write a Task that iterates on a CSV file. Note that writing CSV
 Tasks **requires Active Storage to be configured**. Ensure that the dependency
-is specified in your application's Gemfile, and that you've followed the [setup
-instuctions][setup].
+is specified in your application’s Gemfile, and that you’ve followed the [setup
+instructions][storage-setup]. See also [Customizing which Active Storage service
+to use][storage-customizing].
 
-[setup]: https://edgeguides.rubyonrails.org/active_storage_overview.html#setup
+[storage-setup]: https://edgeguides.rubyonrails.org/active_storage_overview.html#setup
+[storage-customizing]: #customizing-which-active-storage-service-to-use
 
 Generate a CSV Task by running:
 
@@ -115,12 +138,12 @@ My Title,Hello World!
 ```
 
 The files uploaded to your Active Storage service provider will be renamed
-to include an ISO8601 timestamp and the Task name in snake case format.
+to include an ISO 8601 timestamp and the Task name in snake case format.
 The CSV is expected to have a trailing newline at the end of the file.
 
 #### Batch CSV Tasks
 
-Tasks can process CSVs in batches. Add the `in_batches` option to your task's
+Tasks can process CSVs in batches. Add the `in_batches` option to your task’s
 `csv_collection` macro:
 
 ```ruby
@@ -137,12 +160,12 @@ module Maintenance
 end
 ```
 
-As with a regular CSV task, ensure you've implemented the following method:
+As with a regular CSV task, ensure you’ve implemented the following method:
 
 * `process`: do the work of your Task on a batch (array of `CSV::Row` objects).
 
 Note that `#count` is calculated automatically based on the number of batches in
-your collection, and your Task's progress will be displayed in terms of batches
+your collection, and your Task’s progress will be displayed in terms of batches
 (not the total number of rows in your CSV).
 
 ### Processing Batch Collections
@@ -169,13 +192,13 @@ module Maintenance
 end
 ```
 
-Ensure that you've implemented the following methods:
+Ensure that you’ve implemented the following methods:
 
 * `collection`: return an `ActiveRecord::Batches::BatchEnumerator`.
 * `process`: do the work of your Task on a batch (`ActiveRecord::Relation`).
 
 Note that `#count` is calculated automatically based on the number of batches in
-your collection, and your Task's progress will be displayed in terms of batches
+your collection, and your Task’s progress will be displayed in terms of batches
 (not the number of records in the relation).
 
 **Important!** Batches should only be used if `#process` is performing a batch
@@ -187,7 +210,7 @@ primary keys of the records of the batch first, and then perform an additional
 query to load the records when calling `each` (or any `Enumerable` method)
 inside `#process`.
 
-### Tasks that don't need a Collection
+### Tasks that don’t need a Collection
 
 Sometimes, you might want to run a Task that performs a single operation, such
 as enqueuing another background job or hitting an external API. The gem supports
@@ -238,10 +261,6 @@ module Maintenance
       Post.all
     end
 
-    def count
-      collection.count
-    end
-
     def process(post)
       post.update!(content: "New content added on #{Time.now.utc}")
     end
@@ -249,7 +268,7 @@ module Maintenance
 end
 ```
 
-Note that it's up to you to define a throttling condition that makes sense for
+Note that it’s up to you to define a throttling condition that makes sense for
 your app. Shopify implements `DatabaseStatus.healthy?` to check various MySQL
 metrics such as replication lag, DB threads, whether DB writes are available,
 etc.
@@ -258,7 +277,7 @@ Tasks can define multiple throttle conditions. Throttle conditions are inherited
 by descendants, and new conditions will be appended without impacting existing
 conditions.
 
-The backoff can also be specified as a proc:
+The backoff can also be specified as a Proc:
 
 ```ruby
 # app/tasks/maintenance/update_posts_throttled_task.rb
@@ -272,11 +291,12 @@ module Maintenance
   end
 end
 ```
+
 ### Custom Task Parameters
 
 Tasks may need additional information, supplied via parameters, to run.
 Parameters can be defined as Active Model Attributes in a Task, and then become
-accessible to any of Task's methods: `#collection`, `#count`, or `#process`.
+accessible to any of Task’s methods: `#collection`, `#count`, or `#process`.
 
 ```ruby
 # app/tasks/maintenance/update_posts_via_params_task.rb
@@ -290,10 +310,6 @@ module Maintenance
       Post.all
     end
 
-    def count
-      collection.count
-    end
-
     def process(post)
       post.update!(content: updated_content)
     end
@@ -304,7 +320,7 @@ end
 Tasks can leverage Active Model Validations when defining parameters. Arguments
 supplied to a Task accepting parameters will be validated before the Task starts
 to run. Since arguments are specified in the user interface via text area
-inputs, it's important to check that they conform to the format your Task
+inputs, it’s important to check that they conform to the format your Task
 expects, and to sanitize any inputs if necessary.
 
 ### Using Task Callbacks
@@ -337,7 +353,7 @@ end
 Note: The `after_error` callback is guaranteed to complete,
 so any exceptions raised in your callback code are ignored.
 If your `after_error` callback code can raise an exception,
-you'll need to rescue it and handle it appropriately
+you’ll need to rescue it and handle it appropriately
 within the callback.
 
 ```ruby
@@ -386,7 +402,7 @@ depend on the queue adapter but in general, you should follow these rules:
   safely interrupted and resumed.
 * Idempotency of `Task#process`: it should be safe to run `process` multiple
   times for the same element of the collection. Read more in [this Sidekiq best
-  practice][sidekiq-idempotent]. It's important if the Task errors and you run
+  practice][sidekiq-idempotent]. It’s important if the Task errors and you run
   it again, because the same element that errored the Task may well be processed
   again. It especially matters in the situation described above, when the
   iteration duration exceeds the timeout: if the job is re-enqueued, multiple
@@ -394,10 +410,24 @@ depend on the queue adapter but in general, you should follow these rules:
 
 [sidekiq-idempotent]: https://github.com/mperham/sidekiq/wiki/Best-Practices#2-make-your-job-idempotent-and-transactional
 
+#### Task object life cycle and memoization
+
+When the Task runs or resumes, the Runner enqueues a job, which processes the
+Task. That job will instantiate a Task object which will live for the duration
+of the job. The first time the job runs, it will call `count`. Every time a job
+runs, it will call `collection` on the Task object, and then `process`
+for each item in the collection, until the job stops. The job stops when either the
+collection is finished processing or after the maximum job runtime has expired.
+
+This means memoization can be misleading within `process`, since the memoized
+values will be available for subsequent calls to `process` within the same job.
+Still, memoization can be used for throttling or reporting, and you can use [Task
+callbacks](#using-task-callbacks) to persist or log a report for example.
+
 ### Writing tests for a Task
 
 The task generator will also create a test file for your task in the folder
-`test/tasks/maintenance/`. At a minimum, it's recommended that the `#process`
+`test/tasks/maintenance/`. At a minimum, it’s recommended that the `#process`
 method in your task be tested. You may also want to test the `#collection` and
 `#count` methods for your task if they are sufficiently complex.
 
@@ -452,7 +482,7 @@ end
 
 ### Writing tests for a Task with parameters
 
-Tests for tasks with parameters need to instatiate the task class in order to
+Tests for tasks with parameters need to instantiate the task class in order to
 assign attributes. Once the task instance is setup, you may test `#process`
 normally.
 
@@ -479,7 +509,11 @@ end
 
 ### Running a Task
 
+#### Running a Task from the Web UI
+
 You can run your new Task by accessing the Web UI and clicking on "Run".
+
+#### Running a Task from the command line
 
 Alternatively, you can run your Task in the command line:
 
@@ -487,19 +521,28 @@ Alternatively, you can run your Task in the command line:
 bundle exec maintenance_tasks perform Maintenance::UpdatePostsTask
 ```
 
-To run a Task that processes CSVs from the command line, use the --csv option:
+To run a Task that processes CSVs from the command line, use the `--csv` option:
 
 ```sh-session
 bundle exec maintenance_tasks perform Maintenance::ImportPostsTask --csv "path/to/my_csv.csv"
 ```
 
-To run a Task that takes arguments from the command line, use the --arguments
+The `--csv` option also works with CSV content coming from the standard input:
+
+```sh-session
+curl "some/remote/csv" |
+  bundle exec maintenance_tasks perform Maintenance::ImportPostsTask --csv
+```
+
+To run a Task that takes arguments from the command line, use the `--arguments`
 option, passing arguments as a set of \<key>:\<value> pairs:
 
 ```sh-session
 bundle exec maintenance_tasks perform Maintenance::ParamsTask \
   --arguments post_ids:1,2,3 content:"Hello, World!"
 ```
+
+#### Running a Task from Ruby
 
 You can also run a Task in Ruby by sending `run` with a Task name to Runner:
 
@@ -527,7 +570,7 @@ MaintenanceTasks::Runner.run(
 )
 ```
 
-### Monitoring your Task's status
+### Monitoring your Task’s status
 
 The web UI will provide updates on the status of your Task. Here are the states
 a Task can be in:
@@ -566,7 +609,7 @@ By default, a running Task will be interrupted after running for more 5 minutes.
 This is [configured in the `job-iteration` gem][max-job-runtime] and can be
 tweaked in an initializer if necessary.
 
-[max-job-runtime]: https://github.com/Shopify/job-iteration/blob/master/guides/best-practices.md#max-job-runtime
+[max-job-runtime]: https://github.com/Shopify/job-iteration/blob/-/guides/best-practices.md#max-job-runtime
 
 Running tasks will also be interrupted and re-enqueued when needed. For example
 [when Sidekiq workers shuts down for a deploy][sidekiq-deploy]:
@@ -581,13 +624,13 @@ Running tasks will also be interrupted and re-enqueued when needed. For example
 
 When Sidekiq is stopping, it will give workers 25 seconds to finish before
 forcefully terminating them (this is the default but can be configured with the
-`--timeout` option).  Before the worker threads are terminated, Sidekiq will try
-to re-enqueue the job so your Task will be resumed. However, the position in the
-collection won't be persisted so at least one iteration may run again.
+`--timeout` option). Before the worker threads are terminated, Sidekiq will try
+to re-enqueue the job so your Task will be resumed. However, the position in
+the collection won’t be persisted so at least one iteration may run again.
 
 #### Help! My Task is stuck
 
-Finally, if the queue adapter configured for your application doesn't have this
+Finally, if the queue adapter configured for your application doesn’t have this
 property, or if Sidekiq crashes, is forcefully terminated, or is unable to
 re-enqueue the jobs that were in progress, the Task may be in a seemingly stuck
 situation where it appears to be running but is not. In that situation, pausing
@@ -662,7 +705,7 @@ maintenance tasks in your application.
 ```ruby
 # config/initializers/maintenance_tasks.rb
 
-MaintenanceTasks.job = 'CustomTaskJob'
+MaintenanceTasks.job = "CustomTaskJob"
 
 # app/jobs/custom_task_job.rb
 
@@ -693,9 +736,9 @@ If no value is specified, it will default to 1 second.
 #### Customizing which Active Storage service to use
 
 The Active Storage framework in Rails 6.1 and up supports multiple storage
-services per environment. To specify which service to use,
-`MaintenanceTasks.active_storage_service` can be configured with the service's
-key, as specified in your application's `config/storage.yml`:
+services. To specify which service to use,
+`MaintenanceTasks.active_storage_service` can be configured with the service’s
+key, as specified in your application’s `config/storage.yml`:
 
 ```yaml
 # config/storage.yml
@@ -720,7 +763,8 @@ MaintenanceTasks.active_storage_service = :internal
 ```
 
 There is no need to configure this option if your application uses only one
-storage service per environment.
+storage service. `Rails.configuration.active_storage.service` is used by
+default.
 
 #### Customizing the backtrace cleaner
 
@@ -751,13 +795,13 @@ bin/rails generate maintenance_tasks:install
 
 This ensures that new migrations are installed and run as well.
 
-**What if I've deleted my previous Maintenance Task migrations?**
+**What if I’ve deleted my previous Maintenance Task migrations?**
 
 The install command will attempt to reinstall these old migrations and migrating
 the database will cause problems. Use `bin/rails
-maintenance_tasks:install:migrations` to copy the gem's migrations to your
+maintenance_tasks:install:migrations` to copy the gem’s migrations to your
 `db/migrate` folder. Check the release notes to see if any new migrations were
-added since your last gem upgrade.  Ensure that these are kept, but remove any
+added since your last gem upgrade. Ensure that these are kept, but remove any
 migrations that already ran.
 
 Run the migrations using `bin/rails db:migrate`.
@@ -783,8 +827,8 @@ Once a release is ready, follow these steps:
 * Deploy via [Shipit][shipit] and see the new version on
   <https://rubygems.org/gems/maintenance_tasks>.
 * Ensure the release has documented all changes and publish it.
-* Create a new [draft release on GitHub][release] with the title 'Upcoming
-  Release'. The tag version can be left blank. This will be the starting point
+* Create a new [draft release on GitHub][release] with the title “Upcoming
+  Release”. The tag version can be left blank. This will be the starting point
   for documenting changes related to the next release.
 
 [release]: https://help.github.com/articles/creating-releases/

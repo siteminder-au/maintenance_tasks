@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "stringio"
 require "thor"
 
 module MaintenanceTasks
@@ -27,7 +28,7 @@ module MaintenanceTasks
     # Specify the CSV file to process for CSV Tasks
     desc = "Supply a CSV file to be processed by a CSV Task, "\
       "--csv path/to/csv/file.csv"
-    option :csv, desc: desc
+    option :csv, lazy_default: :stdin, desc: desc
     # Specify arguments to supply to a Task supporting parameters
     desc = "Supply arguments for a Task that accepts parameters as a set of "\
       "<key>:<value> pairs."
@@ -52,10 +53,25 @@ module MaintenanceTasks
     private
 
     def csv_file
+      return unless options.key?(:csv)
+
       csv_option = options[:csv]
-      if csv_option
-        { io: File.open(csv_option), filename: File.basename(csv_option) }
+
+      if csv_option == :stdin
+        {
+          io: StringIO.new($stdin.read),
+          filename: "stdin.csv",
+          content_type: "text/csv",
+        }
+      else
+        {
+          io: File.open(csv_option),
+          filename: File.basename(csv_option),
+          content_type: "text/csv",
+        }
       end
+    rescue Errno::ENOENT
+      raise ArgumentError, "CSV file not found: #{csv_option}"
     end
   end
 end

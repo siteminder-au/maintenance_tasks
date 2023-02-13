@@ -37,10 +37,11 @@ module MaintenanceTasks
 
     enum status: STATUSES.map { |status| [status, status.to_s] }.to_h
 
-    validates :task_name, on: :create, inclusion: { in: ->(_) {
-      Task.available_tasks.map(&:to_s)
-    } }
+    validates :task_name, on: :create, inclusion: {
+      in: ->(_) { Task.available_tasks.map(&:to_s) },
+    }
     validate :csv_attachment_presence, on: :create
+    validate :csv_content_type, on: :create
     validate :validate_task_arguments, on: :create
 
     attr_readonly :task_name
@@ -49,6 +50,7 @@ module MaintenanceTasks
     serialize :arguments, JSON
 
     scope :active, -> { where(status: ACTIVE_STATUSES) }
+    scope :completed, -> { where(status: COMPLETED_STATUSES) }
 
     # Ensure ActiveStorage is in use before preloading the attachments
     scope :with_attached_csv, -> do
@@ -117,7 +119,7 @@ module MaintenanceTasks
         id,
         tick_count: number_of_ticks,
         time_running: duration,
-        touch: true
+        touch: true,
       )
       if locking_enabled?
         locking_column = self.class.locking_column
@@ -346,6 +348,18 @@ module MaintenanceTasks
       nil
     end
 
+    # Performs validation on the content type of the :csv_file attachment.
+    # A Run for a Task that uses CsvCollection must have a present :csv_file
+    # and a content type of "text/csv" to be valid. The appropriate error is
+    # added if the Run does not meet the above criteria.
+    def csv_content_type
+      if csv_file.present? && csv_file.content_type != "text/csv"
+        errors.add(:csv_file, "must be a CSV")
+      end
+    rescue Task::NotFoundError
+      nil
+    end
+
     # Support iterating over ActiveModel::Errors in Rails 6.0 and Rails 6.1+.
     # To be removed when Rails 6.0 is no longer supported.
     if Rails::VERSION::STRING.match?(/^6.0/)
@@ -358,7 +372,7 @@ module MaintenanceTasks
             .map { |attribute, message| "#{attribute.inspect} #{message}" }
           errors.add(
             :arguments,
-            "are invalid: #{error_messages.join("; ")}"
+            "are invalid: #{error_messages.join("; ")}",
           )
         end
       rescue Task::NotFoundError
@@ -374,7 +388,7 @@ module MaintenanceTasks
             .map { |error| "#{error.attribute.inspect} #{error.message}" }
           errors.add(
             :arguments,
-            "are invalid: #{error_messages.join("; ")}"
+            "are invalid: #{error_messages.join("; ")}",
           )
         end
       rescue Task::NotFoundError
