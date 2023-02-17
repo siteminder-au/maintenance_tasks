@@ -4,7 +4,7 @@ require_relative "boot"
 
 verbose = $VERBOSE
 $VERBOSE = false
-require "action_mailbox/engine"
+# require "action_mailbox/engine" #part of Rails 6
 $VERBOSE = verbose
 
 require "rails/all"
