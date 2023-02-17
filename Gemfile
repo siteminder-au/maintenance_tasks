@@ -11,13 +11,7 @@ gem "net-smtp" # mail is missing a dependency on net-smtp https://github.com/mik
 gem "pg"
 gem "pry-byebug"
 gem "puma"
-if defined?(@rails_gem_requirement) && @rails_gem_requirement
-  # causes Dependabot to ignore the next line and update the next gem "rails"
-  rails = "rails"
-  gem rails, @rails_gem_requirement
-else
-  gem "rails"
-end
+gem 'rails', '~> 5.2', '>= 5.2.8.1'
 gem "rubocop"
 gem "rubocop-shopify"
 gem "selenium-webdriver"

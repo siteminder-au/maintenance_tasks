@@ -35,7 +35,7 @@ module MaintenanceTasks
     COMPLETED_RUNS_LIMIT = 10
     STUCK_TASK_TIMEOUT = 5.minutes
 
-    enum status: STATUSES.to_h { |status| [status, status.to_s] }
+    enum status: STATUSES.map { |status| [status, status.to_s] }.to_h
 
     validates :task_name, on: :create, inclusion: { in: ->(_) {
       Task.available_tasks.map(&:to_s)
@@ -390,6 +390,7 @@ module MaintenanceTasks
     def csv_file
       return unless defined?(ActiveStorage)
       return unless ActiveStorage::Attachment.table_exists?
+      return # TODO CURTIS - REMOVE THIS LINE AFTER TESTING
 
       super
     end
@@ -403,7 +404,7 @@ module MaintenanceTasks
     def task
       @task ||= begin
         task = Task.named(task_name).new
-        if task.attribute_names.any? && arguments.present?
+        if task.attributes.keys.any? && arguments.present?
           task.assign_attributes(arguments)
         end
         task
@@ -427,7 +428,7 @@ module MaintenanceTasks
     end
 
     def arguments_match_task_attributes
-      invalid_argument_keys = arguments.keys - task.attribute_names
+      invalid_argument_keys = arguments.keys - task.attributes.keys
       if invalid_argument_keys.any?
         error_message = <<~MSG.squish
           Unknown parameters: #{invalid_argument_keys.map(&:to_sym).join(", ")}

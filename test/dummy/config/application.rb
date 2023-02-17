@@ -4,7 +4,7 @@ require_relative "boot"
 
 verbose = $VERBOSE
 $VERBOSE = false
-require "action_mailbox/engine"
+# require "action_mailbox/engine" #part of Rails 6
 $VERBOSE = verbose
 
 require "rails/all"
@@ -17,10 +17,7 @@ module Dummy
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults("#{Rails::VERSION::MAJOR}.#{Rails::VERSION::MINOR}")
 
-    if ENV["CLASSIC_AUTOLOADER"].present?
-      puts "=> Using classic autoloader"
-      config.autoloader = :classic
-    end
+    config.autoloader = :classic
 
     config.to_prepare do
       MaintenanceTasks.job = "CustomTaskJob"

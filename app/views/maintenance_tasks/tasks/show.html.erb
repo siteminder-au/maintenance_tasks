@@ -1,7 +1,7 @@
 <% content_for :page_title, @task %>
 
 <h1 class="title is-1">
-  <%= @task %> <%= status_tag(@task.status) %>
+  <%= @task.name.delete_prefix('Maintenance::').titleize(keep_id_suffix: true) %> <%= status_tag(@task.status) %>
 </h1>
 
 <% last_run = @task.last_run %>

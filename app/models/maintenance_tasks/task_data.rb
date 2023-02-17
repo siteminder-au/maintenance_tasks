@@ -145,7 +145,7 @@ module MaintenanceTasks
       if deleted?
         []
       else
-        Task.named(name).attribute_names
+        Task.named(name).new.attributes.keys
       end
     end
 
